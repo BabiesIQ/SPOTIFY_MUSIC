@@ -1,5 +1,4 @@
 <img src="https://capsule-render.vercel.app/api?type=waving&color=0:6C0AC9,50:B721FF,100:FF006E&height=200&section=header&text=SPOTIFYMUSIC&fontSize=80&fontColor=ffffff&fontAlignY=38&desc=Powered%20By%20%3B-%20BabiesIQ&descAlignY=60&descSize=20&animation=fadeIn" width="100%"/>
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:FF006E,50:B721FF,100:6C0AC9&height=120&section=footer&animation=fadeIn" width="100%"/>
 
 ### ──「 sᴘᴏᴛɪғʏ ダ ᴍᴜsɪᴄ 」── *The Ultimate Telegram Music Bot*
 
