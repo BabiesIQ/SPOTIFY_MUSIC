@@ -1,8 +1,4 @@
-<div align="center">
-
-<img src="https://raw.githubusercontent.com/BABY-MUSIC/SPOTIFY_MUSIC/main/SPOTIFY_MUSIC/assets/assets/public.jpg" alt="SPOTIFY_MUSIC Banner" width="100%"/>
-
-<br/>
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:6C0AC9,50:B721FF,100:FF006E&height=200&section=header&text=SPOTIFYMUSIC&fontSize=80&fontColor=ffffff&fontAlignY=38&desc=Powered%20By%20%3B-%20BabiesIQ&descAlignY=60&descSize=20&animation=fadeIn" width="100%"/>
 
 ```
 ███████╗██████╗  ██████╗ ████████╗██╗███████╗██╗   ██╗    ███╗   ███╗██╗   ██╗███████╗██╗ ██████╗
