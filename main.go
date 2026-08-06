@@ -58,12 +58,12 @@ func main() {
 	slog.SetDefault(logger)
 	tdDir := "database"
 	_ = os.Remove(tdDir)
-	matches, err := filepath.Glob("./libtdjson.so.*")
+	matches, err := filepath.Glob("libtdjson.so.*")
 if err != nil || len(matches) == 0 {
 slog.Error("libtdjson.so not found in current directory")
 os.Exit(1)
 }
-libPath := matches[0]
+libPath := "./" + matches[0]
 slog.Info("Using TDLib", "path", libPath)
 
 	manager := gotdbot.NewClientManager(libPath)
