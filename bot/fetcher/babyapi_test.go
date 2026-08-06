@@ -100,6 +100,9 @@ func TestBabyAPISearchUsesAudioAndVideoEndpoints(t *testing.T) {
 		return &babiesiq.Video{Title: "video", VideoID: "video-id"}, nil
 	}
 
+	// YouTube URLs must be resolved to bare video IDs before the SDK is called,
+	// so that the SDK does not trigger its internal YouTube player API pre-flight
+	// (youtubei/v1/player), which Heroku IPs cannot reach due to bot-detection.
 	y := createYouTubeData("https://youtu.be/dQw4w9WgXcQ")
 	audio, err := y.searchForPlayback(false)
 	if err != nil {
@@ -110,11 +113,30 @@ func TestBabyAPISearchUsesAudioAndVideoEndpoints(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if songQuery != y.Query || videoQuery != y.Query {
-		t.Fatalf("unexpected queries: song=%q video=%q", songQuery, videoQuery)
+	const wantVideoID = "dQw4w9WgXcQ"
+	if songQuery != wantVideoID || videoQuery != wantVideoID {
+		t.Fatalf("SDK must receive bare video ID %q, got: song=%q video=%q", wantVideoID, songQuery, videoQuery)
 	}
 	if audio.Results[0].Id != "song-id" || video.Results[0].Id != "video-id" {
 		t.Fatalf("unexpected results: audio=%+v video=%+v", audio.Results, video.Results)
+	}
+}
+
+func TestBabyAPISearchPassesPlainTextQueryUnchanged(t *testing.T) {
+	withBabyAPIMocks(t)
+	var capturedQuery string
+	babyAPISongSearch = func(_ context.Context, query string) (*babiesiq.Song, error) {
+		capturedQuery = query
+		return &babiesiq.Song{Title: "song", VideoID: "abc123"}, nil
+	}
+
+	const plainQuery = "Sanam Re T-Series"
+	_, err := createYouTubeData(plainQuery).searchForPlayback(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if capturedQuery != plainQuery {
+		t.Fatalf("plain-text query must be passed unchanged to SDK, got %q", capturedQuery)
 	}
 }
 

@@ -97,23 +97,41 @@ func (y *youTubeData) searchWithBabyAPI(video bool) (utils.PlatformTracks, error
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
+	// Resolve YouTube URLs to bare video IDs before handing off to the SDK.
+	//
+	// Root cause: when the SDK receives a full YouTube URL (e.g.
+	// "https://youtu.be/DS-raAyMxl4"), it calls the YouTube InnerTube player
+	// API (youtubei/v1/player) internally to resolve the URL before contacting
+	// BabyAPI. Heroku datacenter IPs are blocked by YouTube's bot-detection on
+	// that endpoint, so the SDK never reaches BabyAPI and returns "video not
+	// found or unavailable".
+	//
+	// Fix: extract the bare 11-character video ID from the URL and pass that
+	// directly. The SDK can then query BabyAPI without needing a YouTube
+	// pre-flight, and the fallback to yt-dlp (which uses cookies) is preserved
+	// if BabyAPI itself fails.
+	query := y.Query
+	if videoID := parseVideoID(normalizeYouTubeURL(y.Query)); videoID != "" {
+		query = videoID
+	}
+
 	if video {
-		result, err := babyAPIVideoSearch(ctx, y.Query)
+		result, err := babyAPIVideoSearch(ctx, query)
 		if err != nil {
 			return utils.PlatformTracks{}, fmt.Errorf("BabyAPI video search failed: %w", err)
 		}
 		if result == nil || result.VideoID == "" {
-			return utils.PlatformTracks{}, fmt.Errorf("BabyAPI returned no video for %q", y.Query)
+			return utils.PlatformTracks{}, fmt.Errorf("BabyAPI returned no video for %q", query)
 		}
 		return utils.PlatformTracks{Results: []utils.MusicTrack{babyAPIVideoTrack(result)}}, nil
 	}
 
-	result, err := babyAPISongSearch(ctx, y.Query)
+	result, err := babyAPISongSearch(ctx, query)
 	if err != nil {
 		return utils.PlatformTracks{}, fmt.Errorf("BabyAPI song search failed: %w", err)
 	}
 	if result == nil || result.VideoID == "" {
-		return utils.PlatformTracks{}, fmt.Errorf("BabyAPI returned no song for %q", y.Query)
+		return utils.PlatformTracks{}, fmt.Errorf("BabyAPI returned no song for %q", query)
 	}
 	return utils.PlatformTracks{Results: []utils.MusicTrack{babyAPISongTrack(result)}}, nil
 }
