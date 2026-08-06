@@ -11,7 +11,6 @@ package dl
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/BabiesIQ/SPOTIFY_MUSIC/bot/utils"
@@ -88,7 +87,12 @@ func TestYouTubeQueryValidationAcceptsNamesAndRejectsOtherURLs(t *testing.T) {
 	}
 }
 
-func TestBabyAPISearchUsesAudioAndVideoEndpoints(t *testing.T) {
+// TestBabyAPISearchReceivesRawQuery verifies that searchWithBabyAPI passes the
+// raw query (URL or text) directly to the babyAPISongSearch / babyAPIVideoSearch
+// var functions. URL-to-video-ID resolution is the responsibility of the var
+// function itself (directSongLookup / directVideoLookup), so the mock captures
+// whatever the caller supplies.
+func TestBabyAPISearchReceivesRawQuery(t *testing.T) {
 	withBabyAPIMocks(t)
 	var songQuery, videoQuery string
 	babyAPISongSearch = func(_ context.Context, query string) (*babiesiq.Song, error) {
@@ -100,9 +104,6 @@ func TestBabyAPISearchUsesAudioAndVideoEndpoints(t *testing.T) {
 		return &babiesiq.Video{Title: "video", VideoID: "video-id"}, nil
 	}
 
-	// YouTube URLs must be resolved to bare video IDs before the SDK is called,
-	// so that the SDK does not trigger its internal YouTube player API pre-flight
-	// (youtubei/v1/player), which Heroku IPs cannot reach due to bot-detection.
 	y := createYouTubeData("https://youtu.be/dQw4w9WgXcQ")
 	audio, err := y.searchForPlayback(false)
 	if err != nil {
@@ -113,30 +114,14 @@ func TestBabyAPISearchUsesAudioAndVideoEndpoints(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	const wantVideoID = "dQw4w9WgXcQ"
-	if songQuery != wantVideoID || videoQuery != wantVideoID {
-		t.Fatalf("SDK must receive bare video ID %q, got: song=%q video=%q", wantVideoID, songQuery, videoQuery)
+	// The raw query (full URL) must be forwarded unchanged — resolution is
+	// done inside directSongLookup / directVideoLookup, not by the caller.
+	if songQuery != y.Query || videoQuery != y.Query {
+		t.Fatalf("var functions must receive raw query %q, got: song=%q video=%q",
+			y.Query, songQuery, videoQuery)
 	}
 	if audio.Results[0].Id != "song-id" || video.Results[0].Id != "video-id" {
 		t.Fatalf("unexpected results: audio=%+v video=%+v", audio.Results, video.Results)
-	}
-}
-
-func TestBabyAPISearchPassesPlainTextQueryUnchanged(t *testing.T) {
-	withBabyAPIMocks(t)
-	var capturedQuery string
-	babyAPISongSearch = func(_ context.Context, query string) (*babiesiq.Song, error) {
-		capturedQuery = query
-		return &babiesiq.Song{Title: "song", VideoID: "abc123"}, nil
-	}
-
-	const plainQuery = "Sanam Re T-Series"
-	_, err := createYouTubeData(plainQuery).searchForPlayback(false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if capturedQuery != plainQuery {
-		t.Fatalf("plain-text query must be passed unchanged to SDK, got %q", capturedQuery)
 	}
 }
 
@@ -145,11 +130,11 @@ func TestBabyAPIDownloadUsesAudioAndVideoEndpoints(t *testing.T) {
 	var songQuery, songPath, videoQuery, videoPath string
 	babyAPISongDownload = func(_ context.Context, query, destination string) (*babiesiq.SongDownloadResult, error) {
 		songQuery, songPath = query, destination
-		return &babiesiq.SongDownloadResult{FilePath: destination}, nil
+		return &babiesiq.SongDownloadResult{Song: &babiesiq.Song{VideoID: query}, FilePath: destination}, nil
 	}
 	babyAPIVideoDownload = func(_ context.Context, query, destination string) (*babiesiq.VideoDownloadResult, error) {
 		videoQuery, videoPath = query, destination
-		return &babiesiq.VideoDownloadResult{FilePath: destination}, nil
+		return &babiesiq.VideoDownloadResult{Video: &babiesiq.Video{VideoID: query}, FilePath: destination}, nil
 	}
 
 	y := createYouTubeData("song name")
@@ -164,10 +149,14 @@ func TestBabyAPIDownloadUsesAudioAndVideoEndpoints(t *testing.T) {
 
 	if songQuery != "audio-id" || videoQuery != "video-id" ||
 		songPath != audio || videoPath != video ||
-		!strings.HasSuffix(audio, "audio-id.mp3") ||
-		!strings.HasSuffix(video, "video-id.mp4") {
+		!endsWithSuffix(audio, "audio-id.mp3") ||
+		!endsWithSuffix(video, "video-id.mp4") {
 		t.Fatalf("unexpected download calls: song=(%q,%q) video=(%q,%q)", songQuery, songPath, videoQuery, videoPath)
 	}
+}
+
+func endsWithSuffix(s, suffix string) bool {
+	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
 }
 
 func TestBabyAPISearchFailureFallsBackToYouTube(t *testing.T) {
@@ -228,5 +217,30 @@ func TestBabyAPIDownloadFailureFallsBackToYtDlp(t *testing.T) {
 	}
 	if result != "fallback-id.mp3" {
 		t.Fatalf("unexpected yt-dlp fallback result: %q", result)
+	}
+}
+
+// TestIsBareVideoID verifies the bare video ID detector used by resolveVideoMeta
+// to handle cached queue URLs that store a bare ID rather than a full URL.
+func TestIsBareVideoID(t *testing.T) {
+	cases := []struct {
+		input string
+		want  bool
+	}{
+		{"dQw4w9WgXcQ", true},
+		{"DS-raAyMxl4", true},
+		{"TAHRNfVci48", true},
+		{"ERfowTjYY-A", true},
+		{"ZM8rAsTT7yE", true},
+		{"https://youtu.be/dQw4w9WgXcQ", false}, // URL, not bare
+		{"Shape of You", false},                  // text query
+		{"dQw4w9WgXcQX", false},                  // 12 chars
+		{"dQw4w9WgXc", false},                    // 10 chars
+		{"dQw4w9WgXc!", false},                   // invalid char
+	}
+	for _, tc := range cases {
+		if got := isBareVideoID(tc.input); got != tc.want {
+			t.Errorf("isBareVideoID(%q) = %v, want %v", tc.input, got, tc.want)
+		}
 	}
 }
