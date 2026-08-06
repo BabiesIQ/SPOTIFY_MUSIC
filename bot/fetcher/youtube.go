@@ -11,12 +11,12 @@ package dl
 import (
 	"time"
 
-	"github.com/BabiesIQ/SPOTIFY_MUSIC/config"
-	"github.com/BabiesIQ/SPOTIFY_MUSIC/bot/utils"
 	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/BabiesIQ/SPOTIFY_MUSIC/bot/utils"
+	"github.com/BabiesIQ/SPOTIFY_MUSIC/config"
 	"log/slog"
 	"math/big"
 	"os"
@@ -41,6 +41,13 @@ var youtubePatterns = map[string]*regexp.Regexp{
 	"yt_shorts": regexp.MustCompile(`(?i)^(?:https?://)?(?:www\.)?youtube\.com/shorts/.*`),
 }
 
+var (
+	youtubeSearch = searchYouTube
+	ytDlpDownload = func(y *youTubeData, videoID string, video bool) (string, error) {
+		return y.downloadWithYtDlp(videoID, video)
+	}
+)
+
 // createYouTubeData initializes a youTubeData instance with pre-compiled regex patterns and a cleaned query.
 func createYouTubeData(query string) *youTubeData {
 	return &youTubeData{
@@ -62,10 +69,33 @@ func (y *youTubeData) isValid() bool {
 			return true
 		}
 	}
-	return false
+
+	// A plain text query is also a YouTube request. URLs that belong to
+	// another supported service are intentionally left for that service.
+	if strings.Contains(y.Query, "://") || strings.HasPrefix(strings.ToLower(y.Query), "www.") {
+		return false
+	}
+	for _, pattern := range apiPatterns {
+		if pattern.MatchString(y.Query) {
+			return false
+		}
+	}
+	return true
 }
 
 func (y *youTubeData) getInfo() (utils.PlatformTracks, error) {
+	if !y.isValid() {
+		return utils.PlatformTracks{}, errors.New("the provided URL is invalid or the platform is not supported")
+	}
+
+	if tracks, err := y.getInfoWithBabyAPI(false); err == nil {
+		return tracks, nil
+	}
+
+	return y.getInfoFromYouTube()
+}
+
+func (y *youTubeData) getInfoFromYouTube() (utils.PlatformTracks, error) {
 	if !y.isValid() {
 		return utils.PlatformTracks{}, errors.New("the provided URL is invalid or the platform is not supported")
 	}
@@ -86,7 +116,7 @@ func (y *youTubeData) getInfo() (utils.PlatformTracks, error) {
 
 	case videoID != "":
 		for _, query := range []string{videoID, y.Query} {
-			tracks, err := searchYouTube(query, 10)
+			tracks, err := youtubeSearch(query, 10)
 			if err != nil {
 				continue
 			}
@@ -99,7 +129,7 @@ func (y *youTubeData) getInfo() (utils.PlatformTracks, error) {
 		}
 
 		if title, err := fetchYouTubeTitleFromOEmbed(videoID); err == nil && title != "" {
-			tracks, err := searchYouTube(title, 10)
+			tracks, err := youtubeSearch(title, 10)
 			if err == nil {
 				for _, track := range tracks {
 					if track.Id == videoID {
@@ -113,11 +143,28 @@ func (y *youTubeData) getInfo() (utils.PlatformTracks, error) {
 		return fetchYouTubeVideo(ctx, videoID)
 	}
 
-	return utils.PlatformTracks{}, errors.New("no video or playlist results were found")
+	tracks, err := youtubeSearch(y.Query, 5)
+	if err != nil {
+		return utils.PlatformTracks{}, fmt.Errorf("YouTube search fallback failed: %w", err)
+	}
+	if len(tracks) == 0 {
+		return utils.PlatformTracks{}, errors.New("no video or playlist results were found")
+	}
+	return utils.PlatformTracks{Results: tracks}, nil
 }
 
 func (y *youTubeData) search() (utils.PlatformTracks, error) {
-	tracks, err := searchYouTube(y.Query, 5)
+	return y.searchForPlayback(false)
+}
+
+func (y *youTubeData) searchForPlayback(video bool) (utils.PlatformTracks, error) {
+	if tracks, err := y.searchWithBabyAPI(video); err == nil {
+		return tracks, nil
+	} else {
+		slog.Warn("BabyAPI search failed; falling back to YouTube search", "query", y.Query, "video", video, "error", err)
+	}
+
+	tracks, err := youtubeSearch(y.Query, 5)
 	if err != nil {
 		return utils.PlatformTracks{}, err
 	}
@@ -138,13 +185,13 @@ func (y *youTubeData) getTrack() (utils.TrackInfo, error) {
 		return utils.TrackInfo{}, errors.New("the provided URL is invalid or the platform is not supported")
 	}
 
-	if y.ApiUrl != "" && y.APIKey != "" {
-		if trackInfo, err := createApiData(y.Query).getTrack(); err == nil {
-			return trackInfo, nil
-		}
+	if trackInfo, err := y.getTrackWithBabyAPI(false); err == nil {
+		return trackInfo, nil
+	} else {
+		slog.Warn("BabyAPI track lookup failed; falling back to YouTube", "query", y.Query, "error", err)
 	}
 
-	getInfo, err := y.getInfo()
+	getInfo, err := y.getInfoFromYouTube()
 	if err != nil {
 		return utils.TrackInfo{}, err
 	}
@@ -162,19 +209,49 @@ func (y *youTubeData) getTrack() (utils.TrackInfo, error) {
 	return trackInfo, nil
 }
 
+func (y *youTubeData) getTrackForPlayback(video bool) (utils.TrackInfo, error) {
+	if y.Query == "" {
+		return utils.TrackInfo{}, errors.New("the query is empty")
+	}
+	if !y.isValid() {
+		return utils.TrackInfo{}, errors.New("the provided URL is invalid or the platform is not supported")
+	}
+
+	if trackInfo, err := y.getTrackWithBabyAPI(video); err == nil {
+		return trackInfo, nil
+	} else {
+		slog.Warn("BabyAPI track lookup failed; falling back to YouTube", "query", y.Query, "video", video, "error", err)
+	}
+
+	getInfo, err := y.getInfoFromYouTube()
+	if err != nil {
+		return utils.TrackInfo{}, err
+	}
+	if len(getInfo.Results) == 0 {
+		return utils.TrackInfo{}, errors.New("no video results were found")
+	}
+
+	track := getInfo.Results[0]
+	return utils.TrackInfo{
+		Id:       track.Id,
+		URL:      track.Url,
+		Platform: utils.YouTube,
+	}, nil
+}
+
 // downloadTrack handles the download of a track from YouTube.
 func (y *youTubeData) downloadTrack(info utils.TrackInfo, video bool) (string, error) {
 	if !video && info.CdnURL != "" {
 		return info.CdnURL, nil
 	}
 
-	if !video && y.ApiUrl != "" && y.APIKey != "" {
-		if filePath, err := y.downloadWithApi(info.Id, video); err == nil {
-			return filePath, nil
-		}
+	if filePath, err := y.downloadWithBabyAPI(info.Id, video); err == nil {
+		return filePath, nil
+	} else {
+		slog.Warn("BabyAPI download failed; falling back to yt-dlp", "video_id", info.Id, "video", video, "error", err)
 	}
 
-	return y.downloadWithYtDlp(info.Id, video)
+	return ytDlpDownload(y, info.Id, video)
 }
 
 // buildYtdlpParams constructs the command-line parameters for yt-dlp to download media.

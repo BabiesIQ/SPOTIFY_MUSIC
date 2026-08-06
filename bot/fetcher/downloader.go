@@ -9,8 +9,8 @@
 package dl
 
 import (
-	"github.com/BabiesIQ/SPOTIFY_MUSIC/bot/utils"
 	"fmt"
+	"github.com/BabiesIQ/SPOTIFY_MUSIC/bot/utils"
 
 	td "github.com/BabiesIQ/gotdbot"
 )
@@ -38,7 +38,7 @@ func acquireViaWrapper(cached *utils.CachedTrack, dlBot *td.Client) (string, err
 		return "", fmt.Errorf("invalid cached URL: %s", cached.URL)
 	}
 
-	track, err := wrapper.GetTrack()
+	track, err := wrapper.GetTrackForPlayback(cached.IsVideo)
 	if err != nil {
 		return "", fmt.Errorf("get track info: %w", err)
 	}

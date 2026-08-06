@@ -88,8 +88,8 @@ go build -o spotify-music .
 | `STRING1` | First assistant session string | ✅ |
 | `STRING2`–`STRING10` | Additional session strings | ❌ |
 | `MAX_FILE_SIZE` | Max download size in bytes (default: 500MB) | ❌ |
-| `API_URL` | External music API base URL | ❌ |
-| `API_KEY` | Key for external music API | ❌ |
+| `API_URL` | BabiesIQ API base URL used first for YouTube playback | ❌ |
+| `API_KEY` | BabiesIQ API key | ❌ |
 | `COOKIES_URL` | Cookie file URL for authenticated streams | ❌ |
 | `SUPPORT_GROUP` | Your Telegram support group link | ❌ |
 | `SUPPORT_CHANNEL` | Your Telegram channel link | ❌ |

@@ -9,8 +9,8 @@
 package dl
 
 import (
-	"github.com/BabiesIQ/SPOTIFY_MUSIC/config"
 	"github.com/BabiesIQ/SPOTIFY_MUSIC/bot/utils"
+	"github.com/BabiesIQ/SPOTIFY_MUSIC/config"
 )
 
 // musicService defines a standard interface for interacting with various music services.
@@ -70,13 +70,42 @@ func (d *DownloaderWrapper) GetInfo() (utils.PlatformTracks, error) {
 	return d.service.getInfo()
 }
 
+// GetInfoForPlayback retrieves metadata using the requested audio/video mode.
+func (d *DownloaderWrapper) GetInfoForPlayback(video bool) (utils.PlatformTracks, error) {
+	if yt, ok := d.service.(*youTubeData); ok {
+		if tracks, err := yt.getInfoWithBabyAPI(video); err == nil {
+			return tracks, nil
+		}
+		if video {
+			return yt.getInfoFromYouTube()
+		}
+	}
+	return d.service.getInfo()
+}
+
 // Search performs a search by delegating the call to the wrapped service.
 func (d *DownloaderWrapper) Search() (utils.PlatformTracks, error) {
 	return d.service.search()
 }
 
+// SearchForPlayback searches using the requested audio/video mode.
+func (d *DownloaderWrapper) SearchForPlayback(video bool) (utils.PlatformTracks, error) {
+	if yt, ok := d.service.(*youTubeData); ok {
+		return yt.searchForPlayback(video)
+	}
+	return d.service.search()
+}
+
 // GetTrack retrieves detailed track information by delegating the call to the wrapped service.
 func (d *DownloaderWrapper) GetTrack() (utils.TrackInfo, error) {
+	return d.service.getTrack()
+}
+
+// GetTrackForPlayback retrieves track details using the requested audio/video mode.
+func (d *DownloaderWrapper) GetTrackForPlayback(video bool) (utils.TrackInfo, error) {
+	if yt, ok := d.service.(*youTubeData); ok {
+		return yt.getTrackForPlayback(video)
+	}
 	return d.service.getTrack()
 }
 

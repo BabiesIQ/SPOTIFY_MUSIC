@@ -9,13 +9,13 @@
 package handlers
 
 import (
-	"github.com/BabiesIQ/SPOTIFY_MUSIC/config"
-	"github.com/BabiesIQ/SPOTIFY_MUSIC/bot/keyboard"
-	"github.com/BabiesIQ/SPOTIFY_MUSIC/bot/cache"
-	"github.com/BabiesIQ/SPOTIFY_MUSIC/bot/store"
-	"github.com/BabiesIQ/SPOTIFY_MUSIC/bot/fetcher"
-	"github.com/BabiesIQ/SPOTIFY_MUSIC/player"
 	"fmt"
+	"github.com/BabiesIQ/SPOTIFY_MUSIC/bot/cache"
+	"github.com/BabiesIQ/SPOTIFY_MUSIC/bot/fetcher"
+	"github.com/BabiesIQ/SPOTIFY_MUSIC/bot/keyboard"
+	"github.com/BabiesIQ/SPOTIFY_MUSIC/bot/store"
+	"github.com/BabiesIQ/SPOTIFY_MUSIC/config"
+	"github.com/BabiesIQ/SPOTIFY_MUSIC/player"
 	"html"
 	"strings"
 
@@ -154,7 +154,7 @@ func processPlay(c *td.Client, m *td.Message, isVideo bool, force bool) error {
 			return td.EndGroups
 		}
 
-		trackInfo, err := wrapper.GetInfo()
+		trackInfo, err := wrapper.GetInfoForPlayback(isVideo)
 		if err != nil {
 			_, _ = updater.EditText(c, fmt.Sprintf("❌ Error fetching track info: %s", err.Error()), nil)
 			return td.EndGroups
@@ -270,7 +270,7 @@ func processMedia(c *td.Client, m *td.Message, updater *td.Message, dlMsg *td.Me
 
 // processTextSearch handles a text search for a song.
 func processTextSearch(c *td.Client, m *td.Message, updater *td.Message, wrapper *dl.DownloaderWrapper, chatId int64, isVideo bool, force bool) error {
-	searchResult, err := wrapper.Search()
+	searchResult, err := wrapper.SearchForPlayback(isVideo)
 	if err != nil {
 		_, err = updater.EditText(c, fmt.Sprintf("❌ Search failed: %s", err.Error()), nil)
 		return err

@@ -3,8 +3,9 @@ module github.com/BabiesIQ/SPOTIFY_MUSIC
 go 1.25.0
 
 require (
-	github.com/BabiesIQ/gotdbot v0.9.5-0.20260804093239-8c748664d8f3
+	github.com/BabiesIQ/_metaAPI/sdk/go v0.0.0-20260805115738-7f197939919e
 	github.com/BabiesIQ/gogram v1.7.72-0.20260804093241-6056bef3a964
+	github.com/BabiesIQ/gotdbot v0.9.5-0.20260804093239-8c748664d8f3
 	github.com/joho/godotenv v1.5.1
 	github.com/shirou/gopsutil/v3 v3.24.5
 	go.mongodb.org/mongo-driver/v2 v2.8.0
