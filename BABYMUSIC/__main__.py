@@ -1,0 +1,58 @@
+import asyncio
+import importlib
+
+from pyrogram import idle
+from pytgcalls.exceptions import NoActiveGroupCall
+
+import config
+from BABYMUSIC import LOGGER, app, userbot
+from BABYMUSIC.core.call import BABY
+from BABYMUSIC.misc import sudo
+from BABYMUSIC.plugins import ALL_MODULES
+from BABYMUSIC.utils.database import get_banned_users, get_gbanned
+from config import BANNED_USERS
+
+
+async def init():
+    if (
+        not config.STRING1
+    ):
+        LOGGER(__name__).error("Assistant client variables not defined, exiting...")
+        exit()
+    await sudo()
+    try:
+        users = await get_gbanned()
+        for user_id in users:
+            BANNED_USERS.add(user_id)
+        users = await get_banned_users()
+        for user_id in users:
+            BANNED_USERS.add(user_id)
+    except:
+        pass
+    await app.start()
+    for all_module in ALL_MODULES:
+        importlib.import_module("BABYMUSIC.plugins" + all_module)
+    LOGGER("BABYMUSIC.plugins").info("Successfully Imported Modules...")
+    await userbot.start()
+    await BABY.start()
+    try:
+        await BABY.stream_call("https://te.legra.ph/file/29f784eb49d230ab62e9e.mp4")
+    except NoActiveGroupCall:
+        LOGGER("BABYMUSIC").error(
+            "Please turn on the videochat of your log group\channel.\n\nStopping Bot..."
+        )
+        exit()
+    except:
+        pass
+    await BABY.decorators()
+    LOGGER("BABYMUSIC").info(
+        "Bot Started Successfully 🎉 ©️ | @YouTubeVCBoT |"
+    )
+    await idle()
+    await app.stop()
+    await userbot.stop()
+    LOGGER("BABYMUSIC").info("Stopping Bot...")
+
+
+if __name__ == "__main__":
+    asyncio.get_event_loop().run_until_complete(init())

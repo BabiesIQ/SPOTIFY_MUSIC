@@ -2,34 +2,20 @@
 
 ## Supported Versions
 
-| Version | Supported |
-|---------|-----------|
-| Latest (`main`) | ✅ |
-| Older releases | ❌ |
+Use this section to tell people about which versions of your project are
+currently being supported with security updates.
 
-We only actively maintain the latest code on the `main` branch.
+| Version | Supported          |
+| ------- | ------------------ |
+| 5.1.x   | :white_check_mark: |
+| 5.0.x   | :x:                |
+| 4.0.x   | :white_check_mark: |
+| < 4.0   | :x:                |
 
 ## Reporting a Vulnerability
 
-**Please do NOT open a public GitHub issue for security vulnerabilities.**
+Use this section to tell people how to report a vulnerability.
 
-If you find a security issue:
-
-1. Open a [GitHub Security Advisory](https://github.com/BabiesIQ/SPOTIFY_MUSIC/security/advisories/new) (private disclosure).
-2. Describe the vulnerability clearly — what it is, how to reproduce it, and the potential impact.
-3. We will acknowledge your report within **48 hours** and aim to release a fix within **7 days** for critical issues.
-
-## Scope
-
-The following are considered in-scope:
-
-- Authentication bypass or session hijacking
-- Remote code execution
-- Sensitive data exposure (tokens, credentials)
-- Denial of service via crafted inputs
-
-The following are **not** in-scope:
-
-- Issues in third-party dependencies (report upstream)
-- Rate limiting or spam prevention
-- Issues requiring physical access to the server
+Tell them where to go, how often they can expect to get an update on a
+reported vulnerability, what to expect if the vulnerability is accepted or
+declined, etc.
