@@ -1,94 +1,74 @@
+
+# ======================================================================
+# ||                                                               ||
+# ||   ██████╗  █████╗ ██████╗ ██╗   ██╗███████╗███████╗██╗ ██████╗  ||
+# ||   ██╔══██╗██╔══██╗██╔══██╗██║   ██║██╔════╝██╔════╝██║██╔═══██╗ ||
+# ||   ██████╔╝███████║██████╔╝██║   ██║█████╗  ███████╗██║██║   ██║ ||
+# ||   ██╔══██╗██╔══██║██╔══██╗██║   ██║██╔══╝  ╚════██║██║██║▄▄ ██║ ||
+# ||   ██████╔╝██║  ██║██████╔╝╚██████╔╝███████╗███████║██║╚██████╔╝ ||
+# ||   ╚═════╝ ╚═╝  ╚═╝╚═════╝  ╚═════╝ ╚══════╝╚══════╝╚═╝ ╚══▀▀═╝  ||
+# ║    ▓▒░ ʙ ᴀ ʙ ɪ ᴇ sＩＱ ░▒▓  s ᴇ ᴄ ᴜ ʀ ᴇ  ▓▒░ ɴ ᴇ ᴛ ᴡ ᴏ ʀ ᴋ ░▒▓    ║
+# ||                                                               ||
+# ======================================================================
+# || PROJECT  : SPOTIFY_MUSIC Public Music Repository                  ||
+# || AUTHOR   : BabiesIQ Team                                      ||
+# || REPO     : github.com/BABY-MUSIC/SPOTIFY_MUSIC                ||
+# || API      : www.babyapi.pro                                    ||
+# || TELEGRAM : t.me/BabiesIQ                                      ||
+# ----------------------------------------------------------------------
+# || LEGAL NOTICE                                                  ||
+# || Use / upload / modify at your own risk.                       ||
+# || Only config /.env edit allowed.                               ||
+# || Do not modify core files.                                     ||
+# || Keep this header if forked.                                   ||
+# || Dev not responsible for ban / damage / api block.             ||
+# ----------------------------------------------------------------------
+# || SECURITY                                                      ||
+# || Internal protection may exist.                                ||
+# || Unauthorized change may stop system.                          ||
+# || Use official API only -> www.babyapi.pro                      ||
+# ======================================================================
+
+
 import re
 from os import getenv
-# ------------------------------------
-# ------------------------------------
 from dotenv import load_dotenv
 from pyrogram import filters
 # ------------------------------------
-# ------------------------------------
 load_dotenv()
-# -----------------------------------
+# ------------------------------------
 # -----------------------------------------------------
-API_ID = int(getenv("API_ID", "16457832"))
-API_HASH = getenv("API_HASH", "3030874d0befdb5d05597deacc3e83ab")
-# ------------------------------------------------------
-BOT_TOKEN = getenv("BOT_TOKEN", "7752788475:AAHG_2JKmPghwnayrxsb_AjziKNlJWFY9lg")
-# -------------------------------------------------------
-OWNER_USERNAME = getenv("OWNER_USERNAME","@ll_Oye_Zayn_ll")
-# --------------------------------------------------------
-BOT_USERNAME = getenv("BOT_USERNAME" , "Gaana_MusicROBot")
-# --------------------------------------------------------
+API_ID = int(getenv("API_ID", None))
+API_HASH = getenv("API_HASH", None)
+BOT_TOKEN = getenv("BOT_TOKEN", None)
+OWNER_USERNAME = getenv("OWNER_USERNAME","@UTTAM470")
+BOT_USERNAME = getenv("BOT_USERNAME" , "BABY_MUSIC09_BOT")
 BOT_NAME = getenv("BOT_NAME" , "╼⃝𖠁 𝐁ʌʙʏ ꭙ 𝐌ᴜsɪᴄ 𖠁⃝╾")
-# ---------------------------------------------------------
 ASSUSERNAME = getenv("ASSUSERNAME" , "╼⃝𖠁 𝐁ʌʙʏ ꭙ 𝐌ᴜsɪᴄ 𖠁⃝╾")
-
 # ---------------------------------------------------------
-API_URL = "https://BabyAPI.Pro"
-
-#---------------------------------------------------------------
-#---------------------------------------------------------------
-VIDEO_API_URL = getenv("VIDEO_API_URL", None)
-#---------------------------------------------------------------
-#---------------
-
-#---------------------------------------------------------------
-#---------------------------------------------------------------
+BASE_URL = getenv("BASE_URL", "https://BabyAPI.Pro")
+API_KEY = getenv("API_KEY", None)
+# ---------------------------------------------------------
 MONGO_DB_URI = getenv("MONGO_DB_URI", "mongodb+srv://TEAMBABY01:UTTAMRATHORE09@cluster0.vmjl9.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
-#---------------------------------------------------------------
-#---------------------------------------------------------------
-
-# ----------------------------------------------------------------
 DURATION_LIMIT_MIN = int(getenv("DURATION_LIMIT", 17000))
-# ----------------------------------------------------------------
-
-# ----------------------------------------------------------------
-LOGGER_ID = int(getenv("LOGGER_ID", "-1002022622141"))
-# ----------------------------------------------------------------
-# ----------------------------------------------------------------
-OWNER_ID = int(getenv("OWNER_ID", "6625936112"))
-# -----------------------------------------------------------------
-# -----------------------------------------------------------------
-# config.py
-# ----------------------------------------------------------------
-# ----------------------------------------------------------------
-# ----------------------------------------------------------------
+LOGGER_ID = int(getenv("LOGGER_ID", None))
+OWNER_ID = int(getenv("OWNER_ID", None))
 HEROKU_APP_NAME = getenv("HEROKU_APP_NAME")
-# ----------------------------------------------------------------
 HEROKU_API_KEY = getenv("HEROKU_API_KEY")
-# ----------------------------------------------------------------
-# ----------------------------------------------------------------
-# ----------------------------------------------------------------
 UPSTREAM_REPO = getenv(
     "UPSTREAM_REPO",
-    "https://github.com/TrickBySaqib/SPOTIFY_MUSIC",
+    "https://github.com/BABY-MUSIC/SPOTIFY_MUSIC",
 )
 UPSTREAM_BRANCH = getenv("UPSTREAM_BRANCH", "main")
 GIT_TOKEN = getenv(
     "GIT_TOKEN", None
-)  # ----------------------------------------------------------------
-# -------------------------------------------------------------------
-# --------------------------------------------------------------------
-# --------------------------------------------------------------------
-
-
-
+)
 # ------------------------------------------------------------------------
 # -------------------------------------------------------------------------
-SUPPORT_CHANNEL = getenv("SUPPORT_CHANNEL", "https://t.me/ll_Bot_Promotion_ll")
-SUPPORT_CHAT = getenv("SUPPORT_CHAT", "https://t.me/ll_Bot_Promotion_ll")
-SOURCE = getenv("SOURCE", "https://t.me/ll_Bot_Promotion_ll")
-CHAT = getenv("CHAT", "https://t.me/ll_Bot_Promotion_ll")
-# ------------------------------------------------------------------------------
-# -------------------------------------------------------------------------------
-
-
-
-
-
-
-
-# --------------------------------------------------------------------------------
-# --------------------------------------------------------------------------------
+SUPPORT_CHANNEL = getenv("SUPPORT_CHANNEL", "https://t.me/+gF7M1_0PC803ZjU9")
+SUPPORT_CHAT = getenv("SUPPORT_CHAT", "https://t.me/YTM_Points")
+SOURCE = getenv("SOURCE", "https://github.com/BABY-MUSIC/SPOTIFY_MUSIC")
+CHAT = getenv("CHAT", "https://t.me/+q43QONRtkrg5NGFk")
 # --------------------------------------------------------------------------------
 # --------------------------------------------------------------------------------
 AUTO_LEAVING_ASSISTANT = getenv("AUTO_LEAVING_ASSISTANT", "False")
@@ -97,54 +77,26 @@ SONG_DOWNLOAD_DURATION = int(getenv("SONG_DOWNLOAD_DURATION", "9999999"))
 SONG_DOWNLOAD_DURATION_LIMIT = int(getenv("SONG_DOWNLOAD_DURATION_LIMIT", "9999999"))
 # --------------------------------------------------------------------------------
 # --------------------------------------------------------------------------------
-# --------------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------------
 SPOTIFY_CLIENT_ID = getenv("SPOTIFY_CLIENT_ID", "1c21247d714244ddbb09925dac565aed")
 SPOTIFY_CLIENT_SECRET = getenv("SPOTIFY_CLIENT_SECRET", "709e1a2969664491b58200860623ef19")
-# ----------------------------------------------------------------------------------
-
-
-
-
-# -----------------------------------------------------------------------------------
 PLAYLIST_FETCH_LIMIT = int(getenv("PLAYLIST_FETCH_LIMIT", 25))
 # ------------------------------------------------------------------------------------
-
 # ------------------------------------------------------------------------------------
 TG_AUDIO_FILESIZE_LIMIT = int(getenv("TG_AUDIO_FILESIZE_LIMIT", "5242880000"))
 TG_VIDEO_FILESIZE_LIMIT = int(getenv("TG_VIDEO_FILESIZE_LIMIT", "5242880000"))
 # --------------------------------------------------------------------------------------
 # ---------------------------------------------------------------------------------------
-
-
-
-# ------------------------------------
-# ------------------------------------
-# ------------------------------------
-# ------------------------------------
-STRING1 = getenv("STRING_SESSION", "BQC86fAAe_hwjC3KX_Qb5CdRnFHQ5FjlTDQnj3dVFhVN_HtN-z7m3vNegI1LndusvWkBjraQWy17a5Y646rlD0pnP6ZzyDMJ343hUGE_lXE4wXKxOcDygWbUauegNgCIO1rptfCLIcAHZhMit-xweto9q8g9LIY3XCG3DE3sixLCUo2bdU6o7nQ1T7J27ZsqUm2AosXfZsv0VSxuHJgzgVRXwBVnCXAhbWFM_HxXSFcAuVs4_ZMBkro48VmkpY_AT3FSzkoW1LLkLLWaxNNuE5kdrj7DUotMxmkDz1KVTMmixwF2taa7xGoE-FnY8VsCIh6TM9Cynmz9OdynSfqHR-_LqX2jIQAAAAGp4VG0AA")
+STRING1 = getenv("STRING_SESSION", "")
 BANNED_USERS = filters.user()
 adminlist = {}
 lyrical = {}
 votemode = {}
 autoclean = []
 confirmer = {}
-
-# ------------------------------------
-# ------------------------------------
-# ------------------------------------
-# ------------------------------------
-
-# ------------------------------------------------------------------------
-# ------------------------------------------------------------------------
-# ------------------------------------------------------------------------
-# ------------------------------------------------------------------------
-# ------------------------------------------------------------------------
 # ------------------------------------------------------------------------
 # ------------------------------------------------------------------------
 START_IMG_URL = getenv(
-    "START_IMG_URL", "https://files.catbox.moe/tapkqc.jpg"
+    "START_IMG_URL", "https://raw.githubusercontent.com/BABY-MUSIC/SPOTIFY_MUSIC/main/SPOTIFY_MUSIC/assets/assets/public.jpg"
 )
 PING_IMG_URL = getenv(
     "PING_IMG_URL", "https://telegra.ph/file/fd827f9a4fe8eaa3e8bf4.jpg"
@@ -154,24 +106,19 @@ STATS_IMG_URL = "https://telegra.ph/file/d30d11c4365c025c25e3e.jpg"
 TELEGRAM_AUDIO_URL = "https://telegra.ph/file/c832e84cd991c865c7e4f.jpg"
 TELEGRAM_VIDEO_URL = "https://telegra.ph/file/e575ae40d6635250974e1.jpg"
 STREAM_IMG_URL = "https://telegra.ph/file/03efec694e41e891b29dc.jpg"
+IQ_Proxy = "https://i.ytimg.com/vi"
 SOUNCLOUD_IMG_URL = "https://telegra.ph/file/d723f4c80da157fca1678.jpg"
 YOUTUBE_IMG_URL = "https://telegra.ph/file/4dc854f961cd3ce46899b.jpg"
 SPOTIFY_ARTIST_IMG_URL = "https://telegra.ph/file/d723f4c80da157fca1678.jpg"
 SPOTIFY_ALBUM_IMG_URL = "https://telegra.ph/file/6c741a6bc1e1663ac96fc.jpg"
 SPOTIFY_PLAYLIST_IMG_URL = "https://telegra.ph/file/6c741a6bc1e1663ac96fc.jpg"
-
-# ------------------------------------------------------------------------
-# ------------------------------------------------------------------------
 # ------------------------------------------------------------------------
 # ------------------------------------------------------------------------
 def time_to_seconds(time):
     stringt = str(time)
     return sum(int(x) * 60**i for i, x in enumerate(reversed(stringt.split(":"))))
 
-
 DURATION_LIMIT = int(time_to_seconds(f"{DURATION_LIMIT_MIN}:00"))
-
-# -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
 if SUPPORT_CHANNEL:
@@ -185,6 +132,9 @@ if SUPPORT_CHAT:
         raise SystemExit(
             "[ERROR] - Your SUPPORT_CHAT url is wrong. Please ensure that it starts with https://"
         )
-# ---------------------------------------------------------------------------------------
-# ----------------------------------------------------------------------------------------
-# ----------------------------------------------------------------------------------------
+
+# ====≈=========|   IQ   Proxy    |=============
+
+__all__ = [
+    "IQ_Proxy",
+]

@@ -52,6 +52,16 @@
         "value": "",
         "required": false
       },
+      "BASE_URL": {
+        "description": "BabyAPI.Pro don't touch this",
+        "value": "https://babyapi.pro",
+        "required": true
+      },
+      "API_KEY": {
+        "description": "Log in on babyapi.pro & get free key",
+        "value": "",
+        "required": true
+      },
       "LOGGER_ID": {
         "description": "Your Log Group ID, add your bot and promote as an admin with full rights!. Channel ki id mat daal dena bsdk.",
         "value": "-1002031903841",
