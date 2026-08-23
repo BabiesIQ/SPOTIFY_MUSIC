@@ -2,7 +2,7 @@ import os,asyncio,aiohttp,time,io
 from pyrogram import filters
 from pyrogram.types import InlineKeyboardMarkup,InlineKeyboardButton,CallbackQuery,Message
 from pyrogram.enums import ChatAction
-from py_yt import VideosSearch
+from youtubesearchpython import VideosSearch
 from SPOTIFY_MUSIC import app
 import config
 from config import BANNED_USERS
