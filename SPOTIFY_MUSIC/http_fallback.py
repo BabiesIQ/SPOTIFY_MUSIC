@@ -414,6 +414,13 @@ async def run():
         me = await bot_app.bot.get_me()
         bot_name = me.username
         log.info("HTTP_BOT_READY bot_id=%s username=@%s", me.id, me.username)
+        await bot_app.updater.start_polling(
+            poll_interval=0.2, timeout=25,
+            drop_pending_updates=True,
+            allowed_updates=["message", "callback_query"],
+        )
+        await bot_app.start()
+        log.info("HTTP_FALLBACK_POLLING_STARTED bot_id=%s", me.id)
         try:
             if config.STRING1:
                 await asyncio.wait_for(BABY.start(), timeout=65)
@@ -427,13 +434,7 @@ async def run():
             voice_ready = False
             log.error("VOICE_ASSISTANT_UNAVAILABLE reason=%s", short_error(exc))
 
-        await bot_app.updater.start_polling(
-            poll_interval=0.2, timeout=25,
-            drop_pending_updates=True,
-            allowed_updates=["message", "callback_query"],
-        )
-        await bot_app.start()
-        log.info("HTTP_FALLBACK_POLLING_STARTED bot_id=%s voice_ready=%s", me.id, voice_ready)
+        log.info("HTTP_FALLBACK_VOICE_STATUS ready=%s", voice_ready)
         await asyncio.Event().wait()
     finally:
         if bot_app.updater and bot_app.updater.running:
