@@ -5,6 +5,9 @@ join or stream change tries the next configured, running assistant.
 """
 import asyncio
 import logging
+import time
+from collections import defaultdict
+from SPOTIFY_MUSIC.safe_updates import patch_assistant_updates
 
 from pyrogram import Client
 from pytgcalls import PyTgCalls, StreamType
@@ -21,6 +24,9 @@ class AssistantPool:
         self.voices = {}
         self.ready = set()
         self.assigned = {}
+        self.last_good = {}
+        self.missing_until = {}
+        self.join_limits = defaultdict(lambda: asyncio.Semaphore(12))
         self.names = {}
         self.end_callback = None
         self.left_callback = None
@@ -45,6 +51,7 @@ class AssistantPool:
                     session_string=str(session),
                 )
                 voice = PyTgCalls(client, cache_duration=150)
+            patch_assistant_updates(client, number)
             self.clients[number] = client
             self.voices[number] = voice
             self._register_events(number, voice)
@@ -72,7 +79,7 @@ class AssistantPool:
                     log.exception("VOICE_LEFT_CALLBACK_FAILED chat=%s assistant=%s", chat_id, number)
 
     async def start(self):
-        for number in sorted(self.voices):
+        async def start_one(number):
             try:
                 await asyncio.wait_for(self.voices[number].start(), timeout=55)
                 who = await asyncio.wait_for(self.clients[number].get_me(), timeout=12)
@@ -88,39 +95,50 @@ class AssistantPool:
                     await asyncio.wait_for(self.voices[number].stop(), timeout=10)
                 except Exception:
                     pass
-        log.info(
-            "VOICE_POOL_READY ready=%s configured=%s",
-            len(self.ready), len(self.voices),
-        )
+        await asyncio.gather(*(start_one(n) for n in sorted(self.voices)))
+        log.info("VOICE_POOL_READY ready=%s configured=%s",
+                 len(self.ready), len(self.voices))
         return len(self.ready)
 
     def ordered_candidates(self, chat_id, *, change=False, exclude=None):
         exclude = set(exclude or ())
-        current = self.assigned.get(chat_id)
         candidates = [n for n in sorted(self.ready) if n not in exclude]
-        if change and current in candidates:
-            return [current] + [n for n in candidates if n != current]
-        return candidates
+        if not candidates:
+            return []
+        offset = abs(chat_id) % len(candidates)
+        candidates = candidates[offset:] + candidates[:offset]
+        preferred = self.assigned.get(chat_id) if change else self.last_good.get(chat_id)
+        if preferred in candidates:
+            candidates.remove(preferred)
+            candidates.insert(0, preferred)
+        now = time.monotonic()
+        valid = [n for n in candidates
+                 if self.missing_until.get((chat_id, n), 0) <= now]
+        return valid or candidates
 
     async def play(self, chat_id, stream_factory, *, change=False, exclude=None):
         previous = self.assigned.get(chat_id)
         last_error = None
-        for number in self.ordered_candidates(chat_id, change=change, exclude=exclude):
+        tried = self.ordered_candidates(chat_id, change=change, exclude=exclude)
+        for number in tried:
             voice = self.voices[number]
             try:
-                stream = stream_factory()
-                if change and number == previous:
-                    await asyncio.wait_for(
-                        voice.change_stream(chat_id, stream), timeout=40
-                    )
-                else:
-                    await asyncio.wait_for(
-                        voice.join_group_call(
-                            chat_id, stream, stream_type=StreamType().pulse_stream
-                        ),
-                        timeout=45,
-                    )
+                async with self.join_limits[number]:
+                    stream = stream_factory()
+                    if change and number == previous:
+                        await asyncio.wait_for(
+                            voice.change_stream(chat_id, stream), timeout=30
+                        )
+                    else:
+                        await asyncio.wait_for(
+                            voice.join_group_call(
+                                chat_id, stream,
+                                stream_type=StreamType().pulse_stream,
+                            ), timeout=35,
+                        )
                 self.assigned[chat_id] = number
+                self.last_good[chat_id] = number
+                self.missing_until.pop((chat_id, number), None)
                 log.info(
                     "VOICE_PLAY_STARTED chat=%s assistant=%d failover=%s",
                     chat_id, number, bool(previous and previous != number),
@@ -129,25 +147,30 @@ class AssistantPool:
                     try:
                         await asyncio.wait_for(
                             self.voices[previous].leave_group_call(chat_id),
-                            timeout=12,
+                            timeout=7,
                         )
                     except Exception:
                         pass
                 return number
             except Exception as exc:
                 last_error = exc
+                kind = type(exc).__name__
                 log.warning(
                     "VOICE_ATTEMPT_FAILED chat=%s assistant=%d error=%s",
-                    chat_id, number, type(exc).__name__,
+                    chat_id, number, kind,
                 )
-                if number != previous:
+                if kind == "NoActiveGroupCall":
+                    self.missing_until[(chat_id, number)] = time.monotonic() + 120
+                if kind in ("NoAudioSourceFound", "FileNotFoundError"):
+                    raise
+                if number != previous and kind != "NoActiveGroupCall":
                     try:
-                        await asyncio.wait_for(voice.leave_group_call(chat_id), timeout=5)
+                        await asyncio.wait_for(voice.leave_group_call(chat_id), timeout=3)
                     except Exception:
                         pass
         raise RuntimeError(
-            f"All {len(self.ordered_candidates(chat_id, change=change, exclude=exclude))} "
-            f"available assistants failed: {type(last_error).__name__ if last_error else 'none ready'}"
+            f"All {len(tried)} available assistants failed: "
+            f"{type(last_error).__name__ if last_error else 'none ready'}"
         )
 
     async def action(self, chat_id, method):

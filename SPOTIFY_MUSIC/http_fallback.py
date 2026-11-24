@@ -34,6 +34,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 voice = AssistantPool()
+search_limit = asyncio.Semaphore(20)
+search_cache = {}
 queues = defaultdict(deque)
 locks = defaultdict(asyncio.Lock)
 active = set()
@@ -106,27 +108,47 @@ async def answer(update: Update, text: str, *, controls=False):
 
 
 async def search_track(query: str, video: bool, sender_id: int):
-    # Direct Telegram media and YouTube links are supported; search uses py_yt.
-    if query.startswith(("http://", "https://")):
-        parsed = urlparse(query)
-        host = (parsed.hostname or "").lower()
-        if not (host == "youtu.be" or host == "youtube.com" or host.endswith(".youtube.com")):
-            raise ValueError("Only YouTube links or search terms are supported")
-    results = await asyncio.wait_for(VideosSearch(query, limit=1).next(), timeout=22)
-    items = results.get("result") or []
-    if not items:
-        raise ValueError("No matching video found")
-    found = items[0]
-    video_id = found.get("id")
-    if not video_id:
-        raise ValueError("YouTube result missing video ID")
-    title = (found.get("title") or "Unknown track")[:110]
+    key = query.casefold().strip()
+    now = time.monotonic()
+    cached = search_cache.get(key)
+    if cached and cached[0] > now:
+        title, video_id = cached[1:]
+    else:
+        video_id = None
+        if query.startswith(("http://", "https://")):
+            parsed = urlparse(query)
+            host = (parsed.hostname or "").lower()
+            if host == "youtu.be":
+                video_id = parsed.path.lstrip("/").split("/")[0]
+            elif host == "youtube.com" or host.endswith(".youtube.com"):
+                video_id = parse_qs(parsed.query).get("v", [""])[0]
+                if not video_id and parsed.path.startswith("/shorts/"):
+                    video_id = parsed.path.split("/")[2]
+            else:
+                raise ValueError("Only YouTube links or search terms are supported")
+            if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id or ""):
+                raise ValueError("Invalid YouTube video ID")
+            title = "YouTube Track"
+        else:
+            async with search_limit:
+                results = await asyncio.wait_for(
+                    VideosSearch(query, limit=1).next(), timeout=18
+                )
+            items = results.get("result") or []
+            if not items:
+                raise ValueError("No matching video found")
+            found = items[0]
+            video_id = found.get("id")
+            if not video_id:
+                raise ValueError("YouTube result missing video ID")
+            title = (found.get("title") or "Unknown track")[:110]
+        if len(search_cache) > 800:
+            search_cache.clear()
+        search_cache[key] = (now + 90, title, video_id)
     return Track(
         title=title,
         source="https://www.youtube.com/watch?v=" + video_id,
-        video_id=video_id,
-        video=video,
-        requested_by=sender_id,
+        video_id=video_id, video=video, requested_by=sender_id,
     )
 
 
@@ -319,12 +341,12 @@ async def play(update: Update, context: ContextTypes.DEFAULT_TYPE, *, video=Fals
 
     chat_id = update.effective_chat.id
     chat_names[chat_id] = update.effective_chat.title or str(chat_id)
-    await delete_safely(update.effective_message)
     processing = None
     try:
         processing = await context.bot.send_message(
             chat_id, "🔎 <b>Processing your query…</b>", parse_mode="HTML",
         )
+        context.application.create_task(delete_safely(update.effective_message))
         if not voice.ready:
             raise RuntimeError("No connected assistant")
         query = " ".join(context.args).strip()
@@ -360,8 +382,10 @@ async def play(update: Update, context: ContextTypes.DEFAULT_TYPE, *, video=Fals
             queued=queued, position=position,
         )
         if not queued:
-            await send_play_log(
-                update, context, track, voice.assigned.get(chat_id),
+            context.application.create_task(
+                send_play_log(
+                    update, context, track, voice.assigned.get(chat_id),
+                )
             )
     except Exception as exc:
         log.error(
@@ -465,7 +489,14 @@ async def run():
     global voice_ready, assistant_name, bot_name
     if not config.BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN is required")
-    bot_app = Application.builder().token(config.BOT_TOKEN).build()
+    bot_app = (
+        Application.builder()
+        .token(config.BOT_TOKEN)
+        .concurrent_updates(64)
+        .connection_pool_size(96)
+        .pool_timeout(20)
+        .build()
+    )
     bot_app.add_handler(CommandHandler(["start", "help"], start))
     bot_app.add_handler(CommandHandler("ping", ping))
     bot_app.add_handler(CommandHandler("ac", ac))
