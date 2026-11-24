@@ -39,8 +39,11 @@ from pyrogram import Client
 from SafoneAPI import SafoneAPI
 from .logging import LOGGER
 
+import os
+
 dirr()
-git()
+if os.getenv('SPOTIFY_HTTP_FALLBACK') != '1':
+    git()
 dbb()
 heroku()
 
