@@ -24,16 +24,20 @@ from pytgcalls.types.stream import StreamAudioEnded
 from py_yt import VideosSearch
 
 import config
-from SPOTIFY_MUSIC.core.call import BABY
+from SPOTIFY_MUSIC.assistant_pool import AssistantPool
+from SPOTIFY_MUSIC.http_ui import (
+    delete_safely, send_music_card, send_play_log, show_active_chats,
+)
 
 log = logging.getLogger("SPOTIFY_MUSIC.http_fallback")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
-voice = BABY.one
+voice = AssistantPool()
 queues = defaultdict(deque)
 locks = defaultdict(asyncio.Lock)
 active = set()
+chat_names = {}
 voice_ready = False
 assistant_name = None
 bot_name = None
@@ -198,14 +202,16 @@ def build_stream(track: Track, path: str):
     return AudioPiped(path, audio_parameters=MediumQualityAudio())
 
 
-async def start_track(chat_id: int, track: Track, *, change: bool):
+async def start_track(chat_id: int, track: Track, *, change: bool, exclude=None):
     path = await stream_source(track)
-    stream = build_stream(track, path)
-    if change:
-        await voice.change_stream(chat_id, stream)
-    else:
-        await voice.join_group_call(chat_id, stream, stream_type=StreamType().pulse_stream)
-        active.add(chat_id)
+    assistant = await voice.play(
+        chat_id,
+        lambda: build_stream(track, path),
+        change=change,
+        exclude=exclude,
+    )
+    active.add(chat_id)
+    return assistant
 
 
 async def next_track(chat_id: int, *, from_event=False):
@@ -227,20 +233,45 @@ async def next_track(chat_id: int, *, from_event=False):
                 q.popleft()
         active.discard(chat_id)
         try:
-            await voice.leave_group_call(chat_id)
+            await voice.leave(chat_id)
         except Exception:
             pass
         return None
 
 
-@voice.on_stream_end()
-async def on_stream_end(client, update):
-    if not isinstance(update, StreamAudioEnded):
+async def on_stream_end(chat_id):
+    if chat_id in active:
+        await next_track(chat_id)
+
+
+async def on_voice_left(chat_id, assistant_number):
+    if chat_id not in active or not queues.get(chat_id):
         return
-    chat_id = update.chat_id
-    if chat_id not in active:
-        return
-    await next_track(chat_id, from_event=True)
+    async with locks[chat_id]:
+        if voice.assigned.get(chat_id) != assistant_number:
+            return
+        try:
+            await start_track(
+                chat_id,
+                queues[chat_id][0],
+                change=False,
+                exclude={assistant_number},
+            )
+            log.warning(
+                "ASSISTANT_FAILOVER_SUCCESS chat=%s from=%s to=%s",
+                chat_id, assistant_number, voice.assigned.get(chat_id),
+            )
+        except Exception as exc:
+            active.discard(chat_id)
+            await voice.leave(chat_id)
+            log.error(
+                "ASSISTANT_FAILOVER_FAILED chat=%s reason=%s",
+                chat_id, type(exc).__name__,
+            )
+
+
+voice.end_callback = on_stream_end
+voice.left_callback = on_voice_left
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -285,36 +316,67 @@ async def prepare_telegram_media(update: Update, video: bool):
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE, *, video=False):
     if not is_group(update):
         return await answer(update, "Use /play or /vplay inside a Telegram group.")
-    if not voice_ready:
-        return await answer(update, "⚠️ HTTP bot is online, but the assistant MTProto session is not connected.")
+
+    chat_id = update.effective_chat.id
+    chat_names[chat_id] = update.effective_chat.title or str(chat_id)
+    await delete_safely(update.effective_message)
+    processing = None
     try:
+        processing = await context.bot.send_message(
+            chat_id, "🔎 <b>Processing your query…</b>", parse_mode="HTML",
+        )
+        if not voice.ready:
+            raise RuntimeError("No connected assistant")
         query = " ".join(context.args).strip()
         if query:
-            track = await search_track(query, video, update.effective_user.id if update.effective_user else 0)
+            track = await search_track(
+                query, video,
+                update.effective_user.id if update.effective_user else 0,
+            )
         else:
             track = await prepare_telegram_media(update, video)
             if track is None:
-                return await answer(update, "Usage: /play song name or YouTube URL; or reply to an audio file with /play.")
-    except Exception as exc:
-        log.warning("Search/media failed: %s", short_error(exc))
-        return await answer(update, "Could not find or load that track (" + short_error(exc) + ").")
+                raise ValueError("Use /play song name or reply to an audio message")
 
-    chat_id = update.effective_chat.id
-    async with locks[chat_id]:
-        q = queues[chat_id]
-        q.append(track)
-        if chat_id in active:
-            return await answer(update, "✅ Queued #" + str(len(q)) + ": " + track.title, controls=True)
-        try:
-            await start_track(chat_id, track, change=False)
-        except Exception as exc:
-            q.pop()
-            log.error("Join/play failed for %s: %s", chat_id, short_error(exc))
-            return await answer(
-                update, "⚠️ Could not join/play (" + short_error(exc) + "). "
-                "Confirm assistant is in the group and a voice chat is active."
+        queued = False
+        position = 1
+        async with locks[chat_id]:
+            q = queues[chat_id]
+            q.append(track)
+            if chat_id in active:
+                queued = True
+                position = len(q)
+            else:
+                try:
+                    await start_track(chat_id, track, change=False)
+                except Exception:
+                    q.pop()
+                    raise
+
+        await delete_safely(processing)
+        processing = None
+        await send_music_card(
+            update, context, track, voice.assigned.get(chat_id),
+            queued=queued, position=position,
+        )
+        if not queued:
+            await send_play_log(
+                update, context, track, voice.assigned.get(chat_id),
             )
-    await answer(update, "▶️ Playing: " + track.title, controls=True)
+    except Exception as exc:
+        log.error(
+            "PLAY_REQUEST_FAILED chat=%s reason=%s info=%s",
+            chat_id, type(exc).__name__, str(exc)[:180],
+        )
+        await delete_safely(processing)
+        processing = None
+        await answer(
+            update,
+            f"⚠️ Request failed ({type(exc).__name__}). "
+            "Please check media availability or assistant permissions.",
+        )
+    finally:
+        await delete_safely(processing)
 
 
 async def play_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -345,10 +407,10 @@ async def control(update: Update, context: ContextTypes.DEFAULT_TYPE, action):
         return await answer(update, "No active stream in this chat.")
     try:
         if action == "pause":
-            await voice.pause_stream(chat_id)
+            await voice.action(chat_id, "pause_stream")
             result = "⏸ Paused"
         elif action == "resume":
-            await voice.resume_stream(chat_id)
+            await voice.action(chat_id, "resume_stream")
             result = "▶️ Resumed"
         elif action == "skip":
             t = await next_track(chat_id)
@@ -360,7 +422,7 @@ async def control(update: Update, context: ContextTypes.DEFAULT_TYPE, action):
                         Path(t.local_file).unlink(missing_ok=True)
                 queues[chat_id].clear()
                 active.discard(chat_id)
-                await voice.leave_group_call(chat_id)
+                await voice.leave(chat_id)
             result = "⏹ Playback stopped"
         else:
             return
@@ -386,6 +448,12 @@ async def stop(update, context):
     await control(update, context, "stop")
 
 
+async def ac(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await show_active_chats(
+        update, context, active, chat_names, queues, voice,
+    )
+
+
 async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = update.callback_query.data or ""
     if not data.startswith("fb:"):
@@ -400,6 +468,7 @@ async def run():
     bot_app = Application.builder().token(config.BOT_TOKEN).build()
     bot_app.add_handler(CommandHandler(["start", "help"], start))
     bot_app.add_handler(CommandHandler("ping", ping))
+    bot_app.add_handler(CommandHandler("ac", ac))
     bot_app.add_handler(CommandHandler(["play", "song"], play_audio))
     bot_app.add_handler(CommandHandler(["vplay", "video"], play_video))
     bot_app.add_handler(CommandHandler(["queue", "playlist"], queue))
@@ -422,17 +491,13 @@ async def run():
         await bot_app.start()
         log.info("HTTP_FALLBACK_POLLING_STARTED bot_id=%s", me.id)
         try:
-            if config.STRING1:
-                await asyncio.wait_for(BABY.start(), timeout=65)
-                voice_ready = True
-                identity = await asyncio.wait_for(BABY.userbot1.get_me(), timeout=12)
-                assistant_name = identity.username or str(identity.id)
-                log.info("VOICE_ASSISTANT_READY user_id=%s", identity.id)
-            else:
-                log.error("VOICE_ASSISTANT_UNAVAILABLE reason=missing_STRING_SESSION")
+            count = await voice.start()
+            voice_ready = count > 0
+            first = min(voice.ready) if voice.ready else None
+            assistant_name = voice.names.get(first) if first else None
         except Exception as exc:
             voice_ready = False
-            log.error("VOICE_ASSISTANT_UNAVAILABLE reason=%s", short_error(exc))
+            log.error("VOICE_POOL_INIT_FAILED reason=%s", short_error(exc))
 
         log.info("HTTP_FALLBACK_VOICE_STATUS ready=%s", voice_ready)
         await asyncio.Event().wait()
